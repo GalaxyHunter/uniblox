@@ -91,4 +91,4 @@ An admin section where admins can:
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/ecommerce-store.git
+   git clone https://github.com/GalaxyHunter/uniblox
