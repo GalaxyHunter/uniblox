@@ -1,96 +1,69 @@
-from fastapi import APIRouter, HTTPException
-from typing import List
-from model import ProductDetails, FilterParams, ProductCreate
-from database import conn, cursor
+import logging
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from database import get_db
+from models import Product
+from schema import ProductCreate
 
-router = APIRouter(tags=["Product"])
+router = APIRouter(tags=['Product'])
 
-# Endpoint to add a new product to the store
+# Initialize logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-@router.post("/add-product/", response_model=ProductDetails)
-async def add_product(product: ProductCreate):
-    # Add the new product to your database
-    cursor.execute("SELECT * FROM products WHERE name = ?", (product.name,))
-    existing_product = cursor.fetchone()
-
+@router.post("/products/")
+def create_product(product: ProductCreate, db: Session = Depends(get_db)):
+    existing_product = db.query(Product).filter(Product.name == product.name).first()
     if existing_product:
-        raise HTTPException(status_code=400, detail="Product with the same name already exists")
+        logger.error(f"Product with name {product.name} already exists.")
+        raise HTTPException(status_code=400, detail="Product with this name already exists.")
+    db_product = Product(
+        name=product.name,
+        description=product.description,
+        price=product.price,
+        stock=product.stock,
+        category=product.category
+    )
+    db.add(db_product)
+    db.commit()
+    db.refresh(db_product)
+    logger.info(f"Product {product.name} created successfully.")
+    return db_product
 
-    cursor.execute("INSERT INTO products (name, price, description, category, reviews) VALUES (?, ?, ?, ?, ?)",
-                   (product.name, product.price, product.description, product.category, ""))
-    conn.commit()
-    
-    # Fetch the added product for confirmation
-    cursor.execute("SELECT * FROM products WHERE name = ?", (product.name,))
-    product_data = cursor.fetchone()
-
-    if not product_data:
-        raise HTTPException(status_code=500, detail="Product could not be added")
-
-    # Convert product data to ProductDetails model
-    added_product = {
-        "product_id": product_data[0],
-        "name": product_data[1],
-        "price": product_data[2],
-        "description": product_data[3],
-        "reviews": product_data[4].split(';')
-    }
-    return added_product
-
-# Endpoint to retrieve product details by product_id
-@router.get("/product/{product_id}", response_model=ProductDetails)
-async def get_product_details(product_id: int):
-    cursor.execute("SELECT * FROM products WHERE product_id = ?", (product_id,))
-    product_data = cursor.fetchone()
-    if not product_data:
-        raise HTTPException(status_code=404, detail="Product not found")
-    
-    product_details = {
-        "product_id": product_data[0],
-        "name": product_data[1],
-        "price": product_data[2],
-        "description": product_data[3],
-        "category": product_data[4],
-        "reviews": product_data[5].split(';')  # Assuming reviews are semicolon-separated
-    }
-    return product_details
-
-# Endpoint for searching and filtering products
-@router.get("/search")
-async def search_and_filter_products(
-    category: str = None,
+@router.get("/products/")
+def list_products(
+    db: Session = Depends(get_db),
+    name: str = None,
     min_price: float = None,
     max_price: float = None,
+    category: str = None
 ):
-    query = "SELECT * FROM products WHERE 1"
-    query_params = []
+    query = db.query(Product)
 
-    if category:
-        query += " AND category = ?"
-        query_params.append(category)
-
+    if name:
+        query = query.filter(Product.name.contains(name))
     if min_price is not None:
-        query += " AND price >= ?"
-        query_params.append(min_price)
-
+        query = query.filter(Product.price >= min_price)
     if max_price is not None:
-        query += " AND price <= ?"
-        query_params.append(max_price)
+        query = query.filter(Product.price <= max_price)
+    if category:
+        query = query.filter(Product.category == category)
 
-    cursor.execute(query, tuple(query_params))
-    products = cursor.fetchall()
+    products = query.all()
+    
+    if not products:
+        logger.error("No products found for given criteria.")
+        raise HTTPException(status_code=404, detail="No products found for given criteria.")
 
-    product_details_list = []
-    for product_data in products:
-        product_details = {
-        "product_id": product_data[0],
-        "name": product_data[1],
-        "price": product_data[2],
-        "description": product_data[3],
-        "category": product_data[4],
-        "reviews": product_data[5].split(';')  # Assuming reviews are semicolon-separated
-    }
-        product_details_list.append(product_details)
+    logger.info(f"Found {len(products)} products for given criteria.")
+    return products
 
-    return product_details_list
-
+@router.get("/products/{product_id}")
+def get_product_by_id(product_id: int, db: Session = Depends(get_db)):
+    product = db.query(Product).filter(Product.id == product_id).first()
+    if not product:
+        logger.error(f"Product with ID {product_id} not found.")
+        raise HTTPException(status_code=404, detail="Product not found.")
+    
+    logger.info(f"Fetched product with ID {product_id}.")
+    return product

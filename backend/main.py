@@ -3,8 +3,8 @@ from router import (
     cart, 
     checkout, 
     admin, 
-    statistics,
-    product
+    product,
+    users
 )
 
 app = FastAPI()
@@ -12,8 +12,8 @@ app = FastAPI()
 app.include_router(cart.router)
 app.include_router(checkout.router)
 app.include_router(admin.router)
-app.include_router(statistics.router)
 app.include_router(product.router)
+app.include_router(users.router)
 
 if __name__ == "__main__":
     import uvicorn
