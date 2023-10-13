@@ -1,42 +1,18 @@
-import sqlite3
+from sqlalchemy import create_engine, MetaData
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
 
-conn = sqlite3.connect("ecommerce.db")
-cursor = conn.cursor()
+DATABASE_URL = "sqlite:///./ecommerce.db"
 
-# Create tables if they don't exist
-cursor.execute("""
-    CREATE TABLE IF NOT EXISTS cart (
-        id INTEGER PRIMARY KEY,
-        product_id INTEGER,
-        quantity INTEGER
-    )
-""")
+engine = create_engine(DATABASE_URL)
+SessionLocal = sessionmaker(bind=engine)
 
-cursor.execute("""
-    CREATE TABLE IF NOT EXISTS orders (
-        id INTEGER PRIMARY KEY,
-        user_id INTEGER,
-        total_amount REAL
-    )
-""")
+Base = declarative_base()
+metadata = MetaData()
 
-cursor.execute("""
-    CREATE TABLE IF NOT EXISTS discount_codes (
-        id INTEGER PRIMARY KEY,
-        code TEXT UNIQUE,
-        is_used INTEGER DEFAULT 0
-    )
-""")
-
-cursor.execute("""
-    CREATE TABLE IF NOT EXISTS products (
-        product_id INTEGER PRIMARY KEY,
-        name TEXT,
-        price REAL,
-        description TEXT,
-        category TEXT,
-        reviews TEXT
-    )
-""")
-
-conn.commit()
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
