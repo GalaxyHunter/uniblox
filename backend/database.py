@@ -27,3 +27,16 @@ cursor.execute("""
         is_used INTEGER DEFAULT 0
     )
 """)
+
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS products (
+        product_id INTEGER PRIMARY KEY,
+        name TEXT,
+        price REAL,
+        description TEXT,
+        category TEXT,
+        reviews TEXT
+    )
+""")
+
+conn.commit()
